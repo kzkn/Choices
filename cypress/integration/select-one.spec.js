@@ -861,5 +861,39 @@ describe('Choices - select one', () => {
           });
       });
     });
+
+    describe('new, destroy, init', () => {
+      it('has 3 choices', () => {
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('.choices__list--dropdown .choices__list')
+          .children()
+          .should('have.length', 3)
+      });
+
+      it('has 3 choices after destroy', () => {
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('button.destroy')
+          .click()
+
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('select')
+          .children()
+          .should('have.length', 3)
+      });
+
+      it('has 3 choices after destroy and init', () => {
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('button.destroy')
+          .click()
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('button.init')
+          .click()
+
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('.choices__list--dropdown .choices__list')
+          .children()
+          .should('have.length', 3)
+      });
+    });
   });
 });
