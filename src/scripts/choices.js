@@ -219,11 +219,11 @@ class Choices {
     this.passedElement.reveal();
     this.containerOuter.unwrap(this.passedElement.element);
 
+    this.clearStore();
+
     if (this._isSelectElement) {
       this.passedElement.options = this._presetChoices;
     }
-
-    this.clearStore();
 
     this.config.templates = null;
     this.initialised = false;
