@@ -135,7 +135,7 @@ class Choices {
       itemChoice: 'item-choice',
     };
     // Assign preset choices from passed object
-    this._presetChoices = this.config.choices;
+    this._presetChoices = [].concat(this.config.choices);
     // Assign preset items from passed object first
     this._presetItems = this.config.items;
     // Then add any values passed from attribute
@@ -225,6 +225,7 @@ class Choices {
       this.passedElement.options = this._presetChoices;
     }
 
+    this._presetChoices = [].concat(this.config.choices);
     this.config.templates = null;
     this.initialised = false;
   }
