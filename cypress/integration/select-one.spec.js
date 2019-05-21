@@ -863,36 +863,36 @@ describe('Choices - select one', () => {
     });
 
     describe('re-initialising a choices instance', () => {
-      it('has 3 choices', () => {
+      it('the original choices element is preserved', () => {
         cy.get('[data-test-hook=new-destroy-init]')
           .find('.choices__list--dropdown .choices__list')
           .children()
-          .should('have.length', 3)
-      });
+          .should('have.length', 3);
 
-      it('has 3 choices after destroy', () => {
         cy.get('[data-test-hook=new-destroy-init]')
           .find('button.destroy')
-          .click()
+          .click();
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('button.init')
+          .click();
+
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('.choices__list--dropdown .choices__list')
+          .children()
+          .should('have.length', 3);
+      });
+    });
+
+    describe('destroying the choices instance', () => {
+      it('the original select element is preserved', () => {
+        cy.get('[data-test-hook=new-destroy-init]')
+          .find('button.destroy')
+          .click();
 
         cy.get('[data-test-hook=new-destroy-init]')
           .find('select')
           .children()
-          .should('have.length', 3)
-      });
-
-      it('has 3 choices after destroy and init', () => {
-        cy.get('[data-test-hook=new-destroy-init]')
-          .find('button.destroy')
-          .click()
-        cy.get('[data-test-hook=new-destroy-init]')
-          .find('button.init')
-          .click()
-
-        cy.get('[data-test-hook=new-destroy-init]')
-          .find('.choices__list--dropdown .choices__list')
-          .children()
-          .should('have.length', 3)
+          .should('have.length', 3);
       });
     });
   });
