@@ -101,6 +101,7 @@ class Choices {
         element: passedElement,
         classNames: this.config.classNames,
       });
+      this._presetOptions = this.passedElement.options;
     }
 
     if (!this.passedElement) {
@@ -134,8 +135,6 @@ class Choices {
     this._idNames = {
       itemChoice: 'item-choice',
     };
-    // Assign preset choices from passed object
-    this._presetChoices = [].concat(this.config.choices);
     // Assign preset items from passed object first
     this._presetItems = this.config.items;
     // Then add any values passed from attribute
@@ -222,10 +221,9 @@ class Choices {
     this.clearStore();
 
     if (this._isSelectElement) {
-      this.passedElement.options = this._presetChoices;
+      this.passedElement.options = this._presetOptions;
     }
 
-    this._presetChoices = [].concat(this.config.choices);
     this.config.templates = null;
     this.initialised = false;
   }
@@ -1903,7 +1901,7 @@ class Choices {
     } else {
       const passedOptions = this.passedElement.options;
       const filter = this.config.sortFn;
-      const allChoices = this._presetChoices;
+      const allChoices = [...this.config.choices];
 
       // Create array of options from option elements
       passedOptions.forEach(o => {
