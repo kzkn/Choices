@@ -862,7 +862,7 @@ describe('Choices - select one', () => {
       });
     });
 
-    describe('new, destroy, init', () => {
+    describe('re-initialising a choices instance', () => {
       it('has 3 choices', () => {
         cy.get('[data-test-hook=new-destroy-init]')
           .find('.choices__list--dropdown .choices__list')
