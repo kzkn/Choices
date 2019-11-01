@@ -884,7 +884,7 @@ describe('Choices - select one', () => {
     });
 
     describe('destroying the choices instance', () => {
-      it('the original select element is preserved', () => {
+      it('preserves the original select element', () => {
         cy.get('[data-test-hook=new-destroy-init]')
           .find('button.destroy')
           .click();
