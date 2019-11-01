@@ -863,7 +863,7 @@ describe('Choices - select one', () => {
     });
 
     describe('re-initialising a choices instance', () => {
-      it('the original choices element is preserved', () => {
+      it('preserves the choices list', () => {
         cy.get('[data-test-hook=new-destroy-init]')
           .find('.choices__list--dropdown .choices__list')
           .children()
