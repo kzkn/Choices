@@ -358,7 +358,7 @@
 
         new Choices('#choices-search-by-label', { searchFields: ['label'] });
 
-        const newDestroyInitChoices = new Choices('#choices-new-destroy-init')
+        const newDestroyInitChoices = new Choices('#choices-new-destroy-init');
         document.querySelector('button.destroy').addEventListener('click', () => {
           newDestroyInitChoices.destroy();
         });
