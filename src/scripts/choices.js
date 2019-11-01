@@ -31,35 +31,58 @@ import {
   sortByScore,
   generateId,
   findAncestorByAttrName,
-  fetchFromObject,
   isIE11,
   existsInArray,
   cloneObject,
   diff,
 } from './lib/utils';
 
+const USER_DEFAULTS = /** @type {Partial<import('../../types/index').Choices.Options>} */ ({});
+
 /**
  * Choices
  * @author Josh Johnson<josh@joshuajohnson.co.uk>
  */
+
+/**
+ * @typedef {import('../../types/index').Choices.Choice} Choice
+ */
 class Choices {
+  static get defaults() {
+    return Object.preventExtensions({
+      get options() {
+        return USER_DEFAULTS;
+      },
+      get templates() {
+        return TEMPLATES;
+      },
+    });
+  }
+
+  /**
+   * @param {string | HTMLInputElement | HTMLSelectElement} element
+   * @param {Partial<import('../../types/index').Choices.Options>} userConfig
+   */
   constructor(element = '[data-choice]', userConfig = {}) {
-    if (isType('String', element)) {
-      const elements = Array.from(document.querySelectorAll(element));
-
-      // If there are multiple elements, create a new instance
-      // for each element besides the first one (as that already has an instance)
-      if (elements.length > 1) {
-        return this._generateInstances(elements, userConfig);
-      }
-    }
-
     this.config = merge.all(
-      [DEFAULT_CONFIG, Choices.userDefaults, userConfig],
+      [DEFAULT_CONFIG, Choices.defaults.options, userConfig],
       // When merging array configs, replace with a copy of the userConfig array,
       // instead of concatenating with the default array
       { arrayMerge: (destinationArray, sourceArray) => [...sourceArray] },
     );
+
+    // Convert addItemFilter to function
+    if (
+      userConfig.addItemFilter &&
+      typeof userConfig.addItemFilter !== 'function'
+    ) {
+      const re =
+        userConfig.addItemFilter instanceof RegExp
+          ? userConfig.addItemFilter
+          : new RegExp(userConfig.addItemFilter);
+
+      this.config.addItemFilter = re.test.bind(re);
+    }
 
     const invalidConfigOptions = diff(this.config, DEFAULT_CONFIG);
     if (invalidConfigOptions.length) {
@@ -73,14 +96,17 @@ class Choices {
       this.config.renderSelectedChoices = 'auto';
     }
 
-    // Retrieve triggering element (i.e. element with 'data-choice' trigger)
-    const passedElement = isType('String', element)
-      ? document.querySelector(element)
-      : element;
+    const passedElement =
+      typeof element === 'string' ? document.querySelector(element) : element;
 
-    if (!passedElement) {
-      return console.error(
-        'Could not find passed element or passed element was of an invalid type',
+    if (
+      !(
+        passedElement instanceof HTMLInputElement ||
+        passedElement instanceof HTMLSelectElement
+      )
+    ) {
+      throw TypeError(
+        'Expected one of the following types text|select-one|select-multiple',
       );
     }
 
@@ -96,31 +122,18 @@ class Choices {
         classNames: this.config.classNames,
         delimiter: this.config.delimiter,
       });
-    } else if (this._isSelectElement) {
+    } else {
       this.passedElement = new WrappedSelect({
         element: passedElement,
         classNames: this.config.classNames,
+        template: data => this._templates.option(data),
       });
       this._presetOptions = this.passedElement.options;
     }
 
-    if (!this.passedElement) {
-      return console.error('Passed element was of an invalid type');
-    }
-
-    if (
-      this.config.shouldSortItems === true &&
-      this._isSelectOneElement &&
-      !this.config.silent
-    ) {
-      console.warn(
-        "shouldSortElements: Type of passed element is 'select-one', falling back to false.",
-      );
-    }
-
     this.initialised = false;
 
-    this._store = new Store(this.render);
+    this._store = new Store();
     this._initialState = {};
     this._currentState = {};
     this._prevState = {};
@@ -131,7 +144,23 @@ class Choices {
     this._wasTap = true;
     this._placeholderValue = this._generatePlaceholderValue();
     this._baseId = generateId(this.passedElement.element, 'choices-');
-    this._direction = this.passedElement.element.getAttribute('dir') || 'ltr';
+    /**
+     * setting direction in cases where it's explicitly set on passedElement
+     * or when calculated direction is different from the document
+     * @type {HTMLElement['dir']}
+     */
+    this._direction = this.passedElement.element.dir;
+    if (!this._direction) {
+      const { direction: elementDirection } = window.getComputedStyle(
+        this.passedElement.element,
+      );
+      const { direction: documentDirection } = window.getComputedStyle(
+        document.documentElement,
+      );
+      if (elementDirection !== documentDirection) {
+        this._direction = elementDirection;
+      }
+    }
     this._idNames = {
       itemChoice: 'item-choice',
     };
@@ -161,20 +190,30 @@ class Choices {
     this._onDirectionKey = this._onDirectionKey.bind(this);
     this._onDeleteKey = this._onDeleteKey.bind(this);
 
+    if (this.config.shouldSortItems === true && this._isSelectOneElement) {
+      if (!this.config.silent) {
+        console.warn(
+          "shouldSortElements: Type of passed element is 'select-one', falling back to false.",
+        );
+      }
+    }
+
     // If element has already been initialised with Choices, fail silently
     if (this.passedElement.element.getAttribute('data-choice') === 'active') {
-      console.warn(
-        'Trying to initialise Choices on element already initialised',
-      );
+      if (!this.config.silent) {
+        console.warn(
+          'Trying to initialise Choices on element already initialised',
+        );
+      }
+
+      this.initialised = true;
+
+      return;
     }
 
     // Let's go
     this.init();
   }
-
-  /* ========================================
-  =            Public functions            =
-  ======================================== */
 
   init() {
     if (this.initialised) {
@@ -204,7 +243,7 @@ class Choices {
 
     const { callbackOnInit } = this.config;
     // Run callback if it is a function
-    if (callbackOnInit && isType('Function', callbackOnInit)) {
+    if (callbackOnInit && typeof callbackOnInit === 'function') {
       callbackOnInit.call(this);
     }
   }
@@ -224,7 +263,7 @@ class Choices {
       this.passedElement.options = this._presetOptions;
     }
 
-    this.config.templates = null;
+    this._templates = null;
     this.initialised = false;
   }
 
@@ -299,11 +338,13 @@ class Choices {
 
   highlightAll() {
     this._store.items.forEach(item => this.highlightItem(item));
+
     return this;
   }
 
   unhighlightAll() {
     this._store.items.forEach(item => this.unhighlightItem(item));
+
     return this;
   }
 
@@ -343,7 +384,7 @@ class Choices {
 
     requestAnimationFrame(() => {
       this.dropdown.show();
-      this.containerOuter.open(this.dropdown.distanceFromTopWindow());
+      this.containerOuter.open(this.dropdown.distanceFromTopWindow);
 
       if (!preventInputFocus && this._canSearch) {
         this.input.focus();
@@ -379,18 +420,23 @@ class Choices {
     const values = this._store.activeItems.reduce((selectedItems, item) => {
       const itemValue = valueOnly ? item.value : item;
       selectedItems.push(itemValue);
+
       return selectedItems;
     }, []);
 
     return this._isSelectOneElement ? values[0] : values;
   }
 
-  setValue(args) {
+  /**
+   * @param {string[] | import('../../types/index').Choices.Item[]} items
+   */
+  setValue(items) {
     if (!this.initialised) {
       return this;
     }
 
-    [...args].forEach(value => this._setChoiceOrItem(value));
+    items.forEach(value => this._setChoiceOrItem(value));
+
     return this;
   }
 
@@ -400,7 +446,7 @@ class Choices {
     }
 
     // If only one value has been passed, convert to array
-    const choiceValue = isType('Array', value) ? value : [value];
+    const choiceValue = Array.isArray(value) ? value : [value];
 
     // Loop through each value and
     choiceValue.forEach(val => this._findAndSelectChoiceByValue(val));
@@ -408,9 +454,95 @@ class Choices {
     return this;
   }
 
-  setChoices(choices = [], value = '', label = '', replaceChoices = false) {
-    if (!this._isSelectElement || !value) {
-      return this;
+  /**
+   * Set choices of select input via an array of objects (or function that returns array of object or promise of it),
+   * a value field name and a label field name.
+   * This behaves the same as passing items via the choices option but can be called after initialising Choices.
+   * This can also be used to add groups of choices (see example 2); Optionally pass a true `replaceChoices` value to remove any existing choices.
+   * Optionally pass a `customProperties` object to add additional data to your choices (useful when searching/filtering etc).
+   *
+   * **Input types affected:** select-one, select-multiple
+   *
+   * @template {object[] | ((instance: Choices) => object[] | Promise<object[]>)} T
+   * @param {T} [choicesArrayOrFetcher]
+   * @param {string} [value = 'value'] - name of `value` field
+   * @param {string} [label = 'label'] - name of 'label' field
+   * @param {boolean} [replaceChoices = false] - whether to replace of add choices
+   * @returns {this | Promise<this>}
+   *
+   * @example
+   * ```js
+   * const example = new Choices(element);
+   *
+   * example.setChoices([
+   *   {value: 'One', label: 'Label One', disabled: true},
+   *   {value: 'Two', label: 'Label Two', selected: true},
+   *   {value: 'Three', label: 'Label Three'},
+   * ], 'value', 'label', false);
+   * ```
+   *
+   * @example
+   * ```js
+   * const example = new Choices(element);
+   *
+   * example.setChoices(async () => {
+   *   try {
+   *      const items = await fetch('/items');
+   *      return items.json()
+   *   } catch(err) {
+   *      console.error(err)
+   *   }
+   * });
+   * ```
+   *
+   * @example
+   * ```js
+   * const example = new Choices(element);
+   *
+   * example.setChoices([{
+   *   label: 'Group one',
+   *   id: 1,
+   *   disabled: false,
+   *   choices: [
+   *     {value: 'Child One', label: 'Child One', selected: true},
+   *     {value: 'Child Two', label: 'Child Two',  disabled: true},
+   *     {value: 'Child Three', label: 'Child Three'},
+   *   ]
+   * },
+   * {
+   *   label: 'Group two',
+   *   id: 2,
+   *   disabled: false,
+   *   choices: [
+   *     {value: 'Child Four', label: 'Child Four', disabled: true},
+   *     {value: 'Child Five', label: 'Child Five'},
+   *     {value: 'Child Six', label: 'Child Six', customProperties: {
+   *       description: 'Custom description about child six',
+   *       random: 'Another random custom property'
+   *     }},
+   *   ]
+   * }], 'value', 'label', false);
+   * ```
+   */
+  setChoices(
+    choicesArrayOrFetcher = [],
+    value = 'value',
+    label = 'label',
+    replaceChoices = false,
+  ) {
+    if (!this.initialised) {
+      throw new ReferenceError(
+        `setChoices was called on a non-initialized instance of Choices`,
+      );
+    }
+    if (!this._isSelectElement) {
+      throw new TypeError(`setChoices can't be used with INPUT based Choices`);
+    }
+
+    if (typeof value !== 'string' || !value) {
+      throw new TypeError(
+        `value parameter must be a name of 'value' field in passed objects`,
+      );
     }
 
     // Clear choices if needed
@@ -418,7 +550,41 @@ class Choices {
       this.clearChoices();
     }
 
+    if (!Array.isArray(choicesArrayOrFetcher)) {
+      if (typeof choicesArrayOrFetcher !== 'function') {
+        throw new TypeError(
+          `.setChoices must be called either with array of choices with a function resulting into Promise of array of choices`,
+        );
+      }
+
+      // it's a choices fetcher
+      requestAnimationFrame(() => this._handleLoadingState(true));
+      const fetcher = choicesArrayOrFetcher(this);
+      if (typeof fetcher === 'object' && typeof fetcher.then === 'function') {
+        // that's a promise
+        return fetcher
+          .then(data => this.setChoices(data, value, label, replaceChoices))
+          .catch(err => {
+            if (!this.config.silent) {
+              console.error(err);
+            }
+          })
+          .then(() => this._handleLoadingState(false))
+          .then(() => this);
+      }
+      // function returned something else than promise, let's check if it's an array of choices
+      if (!Array.isArray(fetcher)) {
+        throw new TypeError(
+          `.setChoices first argument function must return either array of choices or Promise, got: ${typeof fetcher}`,
+        );
+      }
+
+      // recursion with results, it's sync and choices were cleared already
+      return this.setChoices(fetcher, value, label, false);
+    }
+
     this.containerOuter.removeLoadingState();
+
     const addGroupsAndChoices = groupOrChoice => {
       if (groupOrChoice.choices) {
         this._addGroup({
@@ -440,7 +606,7 @@ class Choices {
     };
 
     this._setLoading(true);
-    choices.forEach(addGroupsAndChoices);
+    choicesArrayOrFetcher.forEach(addGroupsAndChoices);
     this._setLoading(false);
 
     return this;
@@ -448,10 +614,13 @@ class Choices {
 
   clearChoices() {
     this._store.dispatch(clearChoices());
+
+    return this;
   }
 
   clearStore() {
     this._store.dispatch(clearAll());
+
     return this;
   }
 
@@ -466,23 +635,6 @@ class Choices {
 
     return this;
   }
-
-  ajax(fn) {
-    if (!this.initialised || !this._isSelectElement || !fn) {
-      return this;
-    }
-
-    requestAnimationFrame(() => this._handleLoadingState(true));
-    fn(this._ajaxCallback());
-
-    return this;
-  }
-
-  /* =====  End of Public functions  ====== */
-
-  /* =============================================
-  =                Private functions            =
-  ============================================= */
 
   _render() {
     if (this._store.isLoading()) {
@@ -554,7 +706,7 @@ class Choices {
       choiceListFragment.childNodes &&
       choiceListFragment.childNodes.length > 0
     ) {
-      const activeItems = this._store.activeItems;
+      const { activeItems } = this._store;
       const canAddItem = this._canAddItem(activeItems, this.input.value);
 
       // ...and we can select them
@@ -572,15 +724,17 @@ class Choices {
       let notice;
 
       if (this._isSearching) {
-        notice = isType('Function', this.config.noResultsText)
-          ? this.config.noResultsText()
-          : this.config.noResultsText;
+        notice =
+          typeof this.config.noResultsText === 'function'
+            ? this.config.noResultsText()
+            : this.config.noResultsText;
 
         dropdownItem = this._getTemplate('notice', notice, 'no-results');
       } else {
-        notice = isType('Function', this.config.noChoicesText)
-          ? this.config.noChoicesText()
-          : this.config.noChoicesText;
+        notice =
+          typeof this.config.noChoicesText === 'function'
+            ? this.config.noChoicesText()
+            : this.config.noChoicesText;
 
         dropdownItem = this._getTemplate('notice', notice, 'no-choices');
       }
@@ -603,13 +757,17 @@ class Choices {
     }
   }
 
-  _createGroupsFragment(groups, choices, fragment) {
-    const groupFragment = fragment || document.createDocumentFragment();
+  _createGroupsFragment(
+    groups,
+    choices,
+    fragment = document.createDocumentFragment(),
+  ) {
     const getGroupChoices = group =>
       choices.filter(choice => {
         if (this._isSelectOneElement) {
           return choice.groupId === group.id;
         }
+
         return (
           choice.groupId === group.id &&
           (this.config.renderSelectedChoices === 'always' || !choice.selected)
@@ -625,17 +783,20 @@ class Choices {
       const groupChoices = getGroupChoices(group);
       if (groupChoices.length >= 1) {
         const dropdownGroup = this._getTemplate('choiceGroup', group);
-        groupFragment.appendChild(dropdownGroup);
-        this._createChoicesFragment(groupChoices, groupFragment, true);
+        fragment.appendChild(dropdownGroup);
+        this._createChoicesFragment(groupChoices, fragment, true);
       }
     });
 
-    return groupFragment;
+    return fragment;
   }
 
-  _createChoicesFragment(choices, fragment, withinGroup = false) {
+  _createChoicesFragment(
+    choices,
+    fragment = document.createDocumentFragment(),
+    withinGroup = false,
+  ) {
     // Create a fragment to store our list items (so we don't have to update the DOM for each item)
-    const choicesFragment = fragment || document.createDocumentFragment();
     const {
       renderSelectedChoices,
       searchResultLimit,
@@ -653,7 +814,7 @@ class Choices {
           choice,
           this.config.itemSelectText,
         );
-        choicesFragment.appendChild(dropdownItem);
+        fragment.appendChild(dropdownItem);
       }
     };
 
@@ -671,6 +832,7 @@ class Choices {
         } else {
           acc.normalChoices.push(choice);
         }
+
         return acc;
       },
       { placeholderChoices: [], normalChoices: [] },
@@ -699,13 +861,12 @@ class Choices {
       }
     }
 
-    return choicesFragment;
+    return fragment;
   }
 
-  _createItemsFragment(items, fragment = null) {
+  _createItemsFragment(items, fragment = document.createDocumentFragment()) {
     // Create fragment to add elements to
     const { shouldSortItems, sortFn, removeItemButton } = this.config;
-    const itemListFragment = fragment || document.createDocumentFragment();
 
     // If sorting is enabled, filter items
     if (shouldSortItems && !this._isSelectOneElement) {
@@ -724,13 +885,13 @@ class Choices {
       // Create new list element
       const listItem = this._getTemplate('item', item, removeItemButton);
       // Append it to list
-      itemListFragment.appendChild(listItem);
+      fragment.appendChild(listItem);
     };
 
     // Add each list item to list
     items.forEach(item => addItemToFragment(item));
 
-    return itemListFragment;
+    return fragment;
   }
 
   _triggerChange(value) {
@@ -744,7 +905,7 @@ class Choices {
   }
 
   _selectPlaceholderChoice() {
-    const placeholderChoice = this._store.placeholderChoice;
+    const { placeholderChoice } = this._store;
 
     if (placeholderChoice) {
       this._addItem({
@@ -817,8 +978,11 @@ class Choices {
     }
 
     // If we are clicking on an option
-    const id = element.getAttribute('data-id');
+    const { id } = element.dataset;
     const choice = this._store.getChoiceById(id);
+    if (!choice) {
+      return;
+    }
     const passedKeyCode =
       activeItems[0] && activeItems[0].keyCode ? activeItems[0].keyCode : null;
     const hasActiveDropdown = this.dropdown.isActive;
@@ -830,7 +994,7 @@ class Choices {
       choice,
     });
 
-    if (choice && !choice.selected && !choice.disabled) {
+    if (!choice.selected && !choice.disabled) {
       const canAddItem = this._canAddItem(activeItems, choice.value);
 
       if (canAddItem.response) {
@@ -850,7 +1014,7 @@ class Choices {
 
     this.clearInput();
 
-    // We wont to close the dropdown if we are dealing with a single select box
+    // We want to close the dropdown if we are dealing with a single select box
     if (hasActiveDropdown && this._isSelectOneElement) {
       this.hideDropdown(true);
       this.containerOuter.focus();
@@ -924,7 +1088,7 @@ class Choices {
       return;
     }
 
-    const choices = this._store.choices;
+    const { choices } = this._store;
     const { searchFloor, searchChoices } = this.config;
     const hasUnactiveChoices = choices.some(option => !option.active);
 
@@ -945,9 +1109,10 @@ class Choices {
 
   _canAddItem(activeItems, value) {
     let canAddItem = true;
-    let notice = isType('Function', this.config.addItemText)
-      ? this.config.addItemText(value)
-      : this.config.addItemText;
+    let notice =
+      typeof this.config.addItemText === 'function'
+        ? this.config.addItemText(value)
+        : this.config.addItemText;
 
     if (!this._isSelectOneElement) {
       const isDuplicateValue = existsInArray(activeItems, value);
@@ -959,9 +1124,10 @@ class Choices {
         // If there is a max entry limit and we have reached that limit
         // don't update
         canAddItem = false;
-        notice = isType('Function', this.config.maxItemText)
-          ? this.config.maxItemText(this.config.maxItemCount)
-          : this.config.maxItemText;
+        notice =
+          typeof this.config.maxItemText === 'function'
+            ? this.config.maxItemText(this.config.maxItemCount)
+            : this.config.maxItemText;
       }
 
       if (
@@ -970,22 +1136,24 @@ class Choices {
         canAddItem
       ) {
         canAddItem = false;
-        notice = isType('Function', this.config.uniqueItemText)
-          ? this.config.uniqueItemText(value)
-          : this.config.uniqueItemText;
+        notice =
+          typeof this.config.uniqueItemText === 'function'
+            ? this.config.uniqueItemText(value)
+            : this.config.uniqueItemText;
       }
 
       if (
         this._isTextElement &&
         this.config.addItems &&
         canAddItem &&
-        isType('Function', this.config.addItemFilterFn) &&
-        !this.config.addItemFilterFn(value)
+        typeof this.config.addItemFilter === 'function' &&
+        !this.config.addItemFilter(value)
       ) {
         canAddItem = false;
-        notice = isType('Function', this.config.customAddItemText)
-          ? this.config.customAddItemText(value)
-          : this.config.customAddItemText;
+        notice =
+          typeof this.config.customAddItemText === 'function'
+            ? this.config.customAddItemText(value)
+            : this.config.customAddItemText;
       }
     }
 
@@ -995,60 +1163,12 @@ class Choices {
     };
   }
 
-  _ajaxCallback() {
-    return (results, value, label) => {
-      if (!results || !value) {
-        return;
-      }
-
-      const parsedResults = isType('Object', results) ? [results] : results;
-
-      if (
-        parsedResults &&
-        isType('Array', parsedResults) &&
-        parsedResults.length
-      ) {
-        // Remove loading states/text
-        this._handleLoadingState(false);
-        this._setLoading(true);
-        // Add each result as a choice
-        parsedResults.forEach(result => {
-          if (result.choices) {
-            this._addGroup({
-              group: result,
-              id: result.id || null,
-              valueKey: value,
-              labelKey: label,
-            });
-          } else {
-            this._addChoice({
-              value: fetchFromObject(result, value),
-              label: fetchFromObject(result, label),
-              isSelected: result.selected,
-              isDisabled: result.disabled,
-              customProperties: result.customProperties,
-              placeholder: result.placeholder,
-            });
-          }
-        });
-
-        this._setLoading(false);
-
-        if (this._isSelectOneElement) {
-          this._selectPlaceholderChoice();
-        }
-      } else {
-        // No results, remove loading state
-        this._handleLoadingState(false);
-      }
-    };
-  }
-
   _searchChoices(value) {
-    const newValue = isType('String', value) ? value.trim() : value;
-    const currentValue = isType('String', this._currentValue)
-      ? this._currentValue.trim()
-      : this._currentValue;
+    const newValue = typeof value === 'string' ? value.trim() : value;
+    const currentValue =
+      typeof this._currentValue === 'string'
+        ? this._currentValue.trim()
+        : this._currentValue;
 
     if (newValue.length < 1 && newValue === `${currentValue} `) {
       return 0;
@@ -1071,48 +1191,91 @@ class Choices {
   }
 
   _addEventListeners() {
-    document.addEventListener('keyup', this._onKeyUp);
-    document.addEventListener('keydown', this._onKeyDown);
-    document.addEventListener('click', this._onClick);
-    document.addEventListener('touchmove', this._onTouchMove);
-    document.addEventListener('touchend', this._onTouchEnd);
-    document.addEventListener('mousedown', this._onMouseDown);
-    document.addEventListener('mouseover', this._onMouseOver);
+    const { documentElement } = document;
+
+    // capture events - can cancel event processing or propagation
+    documentElement.addEventListener('keydown', this._onKeyDown, true);
+    documentElement.addEventListener('touchend', this._onTouchEnd, true);
+    documentElement.addEventListener('mousedown', this._onMouseDown, true);
+
+    // passive events - doesn't call `preventDefault` or `stopPropagation`
+    documentElement.addEventListener('click', this._onClick, { passive: true });
+    documentElement.addEventListener('touchmove', this._onTouchMove, {
+      passive: true,
+    });
+    documentElement.addEventListener('mouseover', this._onMouseOver, {
+      passive: true,
+    });
 
     if (this._isSelectOneElement) {
-      this.containerOuter.element.addEventListener('focus', this._onFocus);
-      this.containerOuter.element.addEventListener('blur', this._onBlur);
+      this.containerOuter.element.addEventListener('focus', this._onFocus, {
+        passive: true,
+      });
+      this.containerOuter.element.addEventListener('blur', this._onBlur, {
+        passive: true,
+      });
     }
 
-    this.input.element.addEventListener('focus', this._onFocus);
-    this.input.element.addEventListener('blur', this._onBlur);
+    this.input.element.addEventListener('keyup', this._onKeyUp, {
+      passive: true,
+    });
+
+    this.input.element.addEventListener('focus', this._onFocus, {
+      passive: true,
+    });
+    this.input.element.addEventListener('blur', this._onBlur, {
+      passive: true,
+    });
 
     if (this.input.element.form) {
-      this.input.element.form.addEventListener('reset', this._onFormReset);
+      this.input.element.form.addEventListener('reset', this._onFormReset, {
+        passive: true,
+      });
     }
 
     this.input.addEventListeners();
   }
 
   _removeEventListeners() {
-    document.removeEventListener('keyup', this._onKeyUp);
-    document.removeEventListener('keydown', this._onKeyDown);
-    document.removeEventListener('click', this._onClick);
-    document.removeEventListener('touchmove', this._onTouchMove);
-    document.removeEventListener('touchend', this._onTouchEnd);
-    document.removeEventListener('mousedown', this._onMouseDown);
-    document.removeEventListener('mouseover', this._onMouseOver);
+    const { documentElement } = document;
+
+    documentElement.removeEventListener('keydown', this._onKeyDown, true);
+    documentElement.removeEventListener('touchend', this._onTouchEnd, true);
+    documentElement.removeEventListener('mousedown', this._onMouseDown, true);
+
+    documentElement.removeEventListener('keyup', this._onKeyUp, {
+      passive: true,
+    });
+    documentElement.removeEventListener('click', this._onClick, {
+      passive: true,
+    });
+    documentElement.removeEventListener('touchmove', this._onTouchMove, {
+      passive: true,
+    });
+    documentElement.removeEventListener('mouseover', this._onMouseOver, {
+      passive: true,
+    });
 
     if (this._isSelectOneElement) {
-      this.containerOuter.element.removeEventListener('focus', this._onFocus);
-      this.containerOuter.element.removeEventListener('blur', this._onBlur);
+      this.containerOuter.element.removeEventListener('focus', this._onFocus, {
+        passive: true,
+      });
+      this.containerOuter.element.removeEventListener('blur', this._onBlur, {
+        passive: true,
+      });
     }
 
-    this.input.element.removeEventListener('focus', this._onFocus);
-    this.input.element.removeEventListener('blur', this._onBlur);
+    this.input.element.removeEventListener('focus', this._onFocus, {
+      passive: true,
+    });
+    this.input.element.removeEventListener('blur', this._onBlur, {
+      passive: true,
+    });
 
     if (this.input.element.form) {
-      this.input.element.form.removeEventListener('reset', this._onFormReset);
+      this.input.element.form.removeEventListener('reset', this._onFormReset, {
+        passive: true,
+      });
     }
 
     this.input.removeEventListeners();
@@ -1128,10 +1291,10 @@ class Choices {
       return;
     }
 
-    const activeItems = this._store.activeItems;
+    const { activeItems } = this._store;
     const hasFocusedInput = this.input.isFocussed;
     const hasActiveDropdown = this.dropdown.isActive;
-    const hasItems = this.itemList.hasChildren;
+    const hasItems = this.itemList.hasChildren();
     const keyString = String.fromCharCode(keyCode);
 
     const {
@@ -1182,12 +1345,8 @@ class Choices {
   }
 
   _onKeyUp({ target, keyCode }) {
-    if (target !== this.input.element) {
-      return;
-    }
-
-    const value = this.input.value;
-    const activeItems = this._store.activeItems;
+    const { value } = this.input;
+    const { activeItems } = this._store;
     const canAddItem = this._canAddItem(activeItems, value);
     const { BACK_KEY: backKey, DELETE_KEY: deleteKey } = KEY_CODES;
 
@@ -1240,7 +1399,7 @@ class Choices {
     const targetWasButton = target.hasAttribute('data-button');
 
     if (this._isTextElement && target.value) {
-      const value = this.input.value;
+      const { value } = this.input;
       const canAddItem = this._canAddItem(activeItems, value);
 
       if (canAddItem.response) {
@@ -1304,9 +1463,9 @@ class Choices {
       let nextEl;
       if (skipKey) {
         if (directionInt > 0) {
-          nextEl = Array.from(
-            this.dropdown.element.querySelectorAll(selectableChoiceIdentifier),
-          ).pop();
+          nextEl = this.dropdown.element.querySelector(
+            `${selectableChoiceIdentifier}:last-of-type`,
+          );
         } else {
           nextEl = this.dropdown.element.querySelector(
             selectableChoiceIdentifier,
@@ -1388,7 +1547,10 @@ class Choices {
   _onMouseDown(event) {
     const { target, shiftKey } = event;
     // If we have our mouse down on the scrollbar and are on IE11...
-    if (this.choiceList.element.contains(target) && isIE11()) {
+    if (
+      this.choiceList.element.contains(target) &&
+      isIE11(navigator.userAgent)
+    ) {
       this._isScrollingOnIe = true;
     }
 
@@ -1399,7 +1561,7 @@ class Choices {
       return;
     }
 
-    const activeItems = this._store.activeItems;
+    const { activeItems } = this._store;
     const hasShiftKey = shiftKey;
     const buttonTarget = findAncestorByAttrName(target, 'data-button');
     const itemTarget = findAncestorByAttrName(target, 'data-item');
@@ -1450,7 +1612,7 @@ class Choices {
         this.hideDropdown();
       }
     } else {
-      const hasHighlightedItems = this._store.highlightedActiveItems;
+      const hasHighlightedItems = this._store.highlightedActiveItems.length > 0;
 
       if (hasHighlightedItems) {
         this.unhighlightAll();
@@ -1499,7 +1661,7 @@ class Choices {
     const blurWasWithinContainer = this.containerOuter.element.contains(target);
 
     if (blurWasWithinContainer && !this._isScrollingOnIe) {
-      const activeItems = this._store.activeItems;
+      const { activeItems } = this._store;
       const hasHighlightedItems = activeItems.some(item => item.highlighted);
       const blurActions = {
         text: () => {
@@ -1605,11 +1767,11 @@ class Choices {
     placeholder = false,
     keyCode = null,
   }) {
-    let passedValue = isType('String', value) ? value.trim() : value;
+    let passedValue = typeof value === 'string' ? value.trim() : value;
 
     const passedKeyCode = keyCode;
     const passedCustomProperties = customProperties;
-    const items = this._store.items;
+    const { items } = this._store;
     const passedLabel = label || passedValue;
     const passedOptionId = parseInt(choiceId, 10) || -1;
     const group = groupId >= 0 ? this._store.getGroupById(groupId) : null;
@@ -1698,12 +1860,10 @@ class Choices {
     }
 
     // Generate unique id
-    const choices = this._store.choices;
+    const { choices } = this._store;
     const choiceLabel = label || value;
     const choiceId = choices ? choices.length + 1 : 1;
-    const choiceElementId = `${this._baseId}-${
-      this._idNames.itemChoice
-    }-${choiceId}`;
+    const choiceElementId = `${this._baseId}-${this._idNames.itemChoice}-${choiceId}`;
 
     this._store.dispatch(
       addChoice({
@@ -1769,8 +1929,9 @@ class Choices {
       return null;
     }
 
-    const { templates, classNames } = this.config;
-    return templates[template].call(this, classNames, ...args);
+    const { classNames } = this.config;
+
+    return this._templates[template].call(this, classNames, ...args);
   }
 
   _createTemplates() {
@@ -1779,12 +1940,12 @@ class Choices {
 
     if (
       callbackOnCreateTemplates &&
-      isType('Function', callbackOnCreateTemplates)
+      typeof callbackOnCreateTemplates === 'function'
     ) {
       userTemplates = callbackOnCreateTemplates.call(this, strToEl);
     }
 
-    this.config.templates = merge(TEMPLATES, userTemplates);
+    this._templates = merge(TEMPLATES, userTemplates);
   }
 
   _createElements() {
@@ -1810,9 +1971,10 @@ class Choices {
     });
 
     this.input = new Input({
-      element: this._getTemplate('input'),
+      element: this._getTemplate('input', this._placeholderValue),
       classNames: this.config.classNames,
       type: this.passedElement.element.type,
+      preventPaste: !this.config.paste,
     });
 
     this.choiceList = new List({
@@ -1916,7 +2078,9 @@ class Choices {
       });
 
       // If sorting is enabled or the user is searching, filter choices
-      if (this.config.shouldSort) allChoices.sort(filter);
+      if (this.config.shouldSort) {
+        allChoices.sort(filter);
+      }
 
       // Determine whether there is a selected choice
       const hasSelectedChoice = allChoices.some(choice => choice.selected);
@@ -2037,7 +2201,7 @@ class Choices {
   }
 
   _findAndSelectChoiceByValue(val) {
-    const choices = this._store.choices;
+    const { choices } = this._store;
     // Check 'value' property exists and the choice isn't already selected
     const foundChoice = choices.find(choice =>
       this.config.itemComparer(choice.value, val),
@@ -2056,16 +2220,6 @@ class Choices {
     }
   }
 
-  _generateInstances(elements, config) {
-    return elements.reduce(
-      (instances, element) => {
-        instances.push(new Choices(element, config));
-        return instances;
-      },
-      [this],
-    );
-  }
-
   _generatePlaceholderValue() {
     if (this._isSelectOneElement) {
       return false;
@@ -2080,6 +2234,4 @@ class Choices {
   /* =====  End of Private functions  ====== */
 }
 
-Choices.userDefaults = {};
-// We cannot export default here due to Webpack: https://github.com/webpack/webpack/issues/3929
-module.exports = Choices;
+export default Choices;

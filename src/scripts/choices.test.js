@@ -2,12 +2,27 @@ import { expect } from 'chai';
 import { spy, stub } from 'sinon';
 
 import Choices from './choices';
-import { EVENTS, ACTION_TYPES } from './constants';
+import { EVENTS, ACTION_TYPES, DEFAULT_CONFIG } from './constants';
+import { WrappedSelect, WrappedInput } from './components/index';
 
 describe('choices', () => {
   let instance;
   let output;
   let passedElement;
+
+  beforeEach(() => {
+    passedElement = document.createElement('input');
+    passedElement.type = 'text';
+    passedElement.className = 'js-choices';
+    document.body.appendChild(passedElement);
+
+    instance = new Choices(passedElement);
+  });
+
+  afterEach(() => {
+    output = null;
+    instance = null;
+  });
 
   const returnsInstance = () => {
     it('returns this', () => {
@@ -15,27 +30,194 @@ describe('choices', () => {
     });
   };
 
+  describe('constructor', () => {
+    describe('config', () => {
+      describe('not passing config options', () => {
+        it('uses the default config', () => {
+          document.body.innerHTML = `
+          <input data-choice type="text" id="input-1" />
+          `;
+
+          instance = new Choices();
+
+          expect(instance.config).to.eql(DEFAULT_CONFIG);
+        });
+      });
+
+      describe('passing config options', () => {
+        it('merges the passed config with the default config', () => {
+          document.body.innerHTML = `
+          <input data-choice type="text" id="input-1" />
+          `;
+
+          const config = {
+            renderChoiceLimit: 5,
+          };
+          instance = new Choices('[data-choice]', config);
+
+          expect(instance.config).to.eql({
+            ...DEFAULT_CONFIG,
+            ...config,
+          });
+        });
+      });
+    });
+
+    describe('not passing an element', () => {
+      it('returns a Choices instance for the first element with a "data-choice" attribute', () => {
+        document.body.innerHTML = `
+        <input data-choice type="text" id="input-1" />
+        <input data-choice type="text" id="input-2" />
+        <input data-choice type="text" id="input-3" />
+        `;
+
+        const inputs = document.querySelectorAll('[data-choice]');
+        expect(inputs.length).to.equal(3);
+
+        instance = new Choices();
+
+        expect(instance.passedElement.element.id).to.equal(inputs[0].id);
+      });
+
+      describe('when an element cannot be found in the DOM', () => {
+        it('throws an error', () => {
+          document.body.innerHTML = ``;
+          expect(() => new Choices()).to.throw(
+            TypeError,
+            'Expected one of the following types text|select-one|select-multiple',
+          );
+        });
+      });
+    });
+
+    describe('passing an element', () => {
+      describe('passing an element that has not been initialised with Choices', () => {
+        beforeEach(() => {
+          document.body.innerHTML = `
+          <input type="text" id="input-1" />
+          `;
+        });
+
+        it('sets the initialised flag to true', () => {
+          instance = new Choices('#input-1');
+          expect(instance.initialised).to.equal(true);
+        });
+
+        it('intialises', () => {
+          const initSpy = spy();
+          // initialise with the same element
+          instance = new Choices('#input-1', {
+            silent: true,
+            callbackOnInit: initSpy,
+          });
+
+          expect(initSpy.called).to.equal(true);
+        });
+      });
+
+      describe('passing an element that has already be initialised with Choices', () => {
+        beforeEach(() => {
+          document.body.innerHTML = `
+          <input type="text" id="input-1" />
+          `;
+
+          // initialise once
+          new Choices('#input-1', { silent: true });
+        });
+
+        it('sets the initialised flag to true', () => {
+          // initialise with the same element
+          instance = new Choices('#input-1', { silent: true });
+
+          expect(instance.initialised).to.equal(true);
+        });
+
+        it('does not reinitialise', () => {
+          const initSpy = spy();
+          // initialise with the same element
+          instance = new Choices('#input-1', {
+            silent: true,
+            callbackOnInit: initSpy,
+          });
+
+          expect(initSpy.called).to.equal(false);
+        });
+      });
+
+      describe(`passing an element as a DOMString`, () => {
+        describe('passing a input element type', () => {
+          it('sets the "passedElement" instance property as an instance of WrappedInput', () => {
+            document.body.innerHTML = `
+            <input data-choice type="text" id="input-1" />
+            `;
+
+            instance = new Choices('[data-choice]');
+
+            expect(instance.passedElement).to.be.an.instanceOf(WrappedInput);
+          });
+        });
+
+        describe('passing a select element type', () => {
+          it('sets the "passedElement" instance property as an instance of WrappedSelect', () => {
+            document.body.innerHTML = `
+            <select data-choice id="select-1"></select>
+            `;
+
+            instance = new Choices('[data-choice]');
+
+            expect(instance.passedElement).to.be.an.instanceOf(WrappedSelect);
+          });
+        });
+      });
+
+      describe(`passing an element as a HTMLElement`, () => {
+        describe('passing a input element type', () => {
+          it('sets the "passedElement" instance property as an instance of WrappedInput', () => {
+            document.body.innerHTML = `
+            <input data-choice type="text" id="input-1" />
+            `;
+
+            instance = new Choices(document.querySelector('[data-choice]'));
+
+            expect(instance.passedElement).to.be.an.instanceOf(WrappedInput);
+          });
+        });
+
+        describe('passing a select element type', () => {
+          it('sets the "passedElement" instance property as an instance of WrappedSelect', () => {
+            document.body.innerHTML = `
+            <select data-choice id="select-1"></select>
+            `;
+
+            instance = new Choices(document.querySelector('[data-choice]'));
+
+            expect(instance.passedElement).to.be.an.instanceOf(WrappedSelect);
+          });
+        });
+      });
+
+      describe('passing an invalid element type', () => {
+        it('throws an TypeError', () => {
+          document.body.innerHTML = `
+          <div data-choice id="div-1"></div>
+          `;
+          expect(() => new Choices('[data-choice]')).to.throw(
+            TypeError,
+            'Expected one of the following types text|select-one|select-multiple',
+          );
+        });
+      });
+    });
+  });
+
   describe('public methods', () => {
-    beforeEach(() => {
-      passedElement = document.createElement('input');
-      passedElement.type = 'text';
-      passedElement.className = 'js-choices';
-      document.body.appendChild(passedElement);
-
-      instance = new Choices(passedElement);
-    });
-
-    afterEach(() => {
-      output = null;
-      instance = null;
-    });
-
     describe('init', () => {
       const callbackOnInitSpy = spy();
 
       beforeEach(() => {
         instance = new Choices(passedElement, {
           callbackOnInit: callbackOnInitSpy,
+          silent: true,
         });
       });
 
@@ -171,7 +353,7 @@ describe('choices', () => {
         });
 
         it('nullifys templates config', () => {
-          expect(instance.config.templates).to.equal(null);
+          expect(instance._templates).to.equal(null);
         });
 
         it('resets initialise flag', () => {
@@ -797,6 +979,29 @@ describe('choices', () => {
       });
     });
 
+    describe('clearChoices', () => {
+      let storeDispatchStub;
+
+      beforeEach(() => {
+        storeDispatchStub = stub();
+        instance._store.dispatch = storeDispatchStub;
+
+        output = instance.clearChoices();
+      });
+
+      afterEach(() => {
+        instance._store.dispatch.reset();
+      });
+
+      returnsInstance(output);
+
+      it('dispatches clearChoices action', () => {
+        expect(storeDispatchStub.lastCall.args[0]).to.eql({
+          type: ACTION_TYPES.CLEAR_CHOICES,
+        });
+      });
+    });
+
     describe('clearStore', () => {
       let storeDispatchStub;
 
@@ -880,84 +1085,75 @@ describe('choices', () => {
       });
     });
 
-    describe('ajax', () => {
-      const callbackoutput = 'worked';
-
-      let handleLoadingStateStub;
-      let ajaxCallbackStub;
-
-      const returnsEarly = () => {
-        it('returns early', () => {
-          expect(handleLoadingStateStub.called).to.equal(false);
-          expect(ajaxCallbackStub.called).to.equal(false);
-        });
-      };
-
-      beforeEach(() => {
-        handleLoadingStateStub = stub();
-        ajaxCallbackStub = stub().returns(callbackoutput);
-
-        instance._ajaxCallback = ajaxCallbackStub;
-        instance._handleLoadingState = handleLoadingStateStub;
-      });
-
-      afterEach(() => {
-        instance._ajaxCallback.reset();
-        instance._handleLoadingState.reset();
-      });
-
+    describe('setChoices with callback/Promise', () => {
       describe('not initialised', () => {
         beforeEach(() => {
           instance.initialised = false;
-          output = instance.ajax(() => {});
         });
 
-        returnsInstance(output);
-        returnsEarly();
+        it('should throw', () => {
+          expect(() => instance.setChoices(null)).Throw(ReferenceError);
+        });
       });
 
       describe('text element', () => {
         beforeEach(() => {
           instance._isSelectElement = false;
-          output = instance.ajax(() => {});
         });
 
-        returnsInstance(output);
-        returnsEarly();
+        it('should throw', () => {
+          expect(() => instance.setChoices(null)).Throw(TypeError);
+        });
       });
 
       describe('passing invalid function', () => {
         beforeEach(() => {
-          output = instance.ajax(null);
+          instance._isSelectElement = true;
         });
 
-        returnsInstance(output);
-        returnsEarly();
+        it('should throw on non function', () => {
+          expect(() => instance.setChoices(null)).Throw(TypeError, /Promise/i);
+        });
+
+        it(`should throw on function that doesn't return promise`, () => {
+          expect(() => instance.setChoices(() => 'boo')).to.throw(
+            TypeError,
+            /promise/i,
+          );
+        });
       });
 
       describe('select element', () => {
-        let callback;
+        it('fetches and sets choices', async () => {
+          document.body.innerHTML = '<select id="test" />';
+          const choice = new Choices('#test');
+          const handleLoadingStateSpy = spy(choice, '_handleLoadingState');
 
-        beforeEach(() => {
-          instance.initialised = true;
-          instance._isSelectElement = true;
-          ajaxCallbackStub = stub();
-          callback = stub();
-          output = instance.ajax(callback);
-        });
+          let fetcherCalled = false;
+          const fetcher = async inst => {
+            expect(inst).to.eq(choice);
+            fetcherCalled = true;
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-        returnsInstance(output);
-
-        it('sets loading state', done => {
-          requestAnimationFrame(() => {
-            expect(handleLoadingStateStub.called).to.equal(true);
-            done();
-          });
-        });
-
-        it('calls passed function with ajax callback', () => {
-          expect(callback.called).to.equal(true);
-          expect(callback.lastCall.args[0]).to.eql(callbackoutput);
+            return [
+              { label: 'l1', value: 'v1', customProperties: 'prop1' },
+              { label: 'l2', value: 'v2', customProperties: 'prop2' },
+            ];
+          };
+          expect(choice._store.choices.length).to.equal(0);
+          const promise = choice.setChoices(fetcher);
+          await new Promise(resolve =>
+            requestAnimationFrame(() => {
+              expect(handleLoadingStateSpy.callCount).to.equal(1);
+              resolve();
+            }),
+          );
+          expect(fetcherCalled).to.be.true;
+          const res = await promise;
+          expect(res).to.equal(choice);
+          expect(choice._store.choices[1].value).to.equal('v2');
+          expect(choice._store.choices[1].label).to.equal('l2');
+          expect(choice._store.choices[1].customProperties).to.equal('prop2');
         });
       });
     });
@@ -1330,7 +1526,7 @@ describe('choices', () => {
           ...choices[0],
           choices,
         },
-        ...choices[1],
+        choices[1],
       ];
 
       beforeEach(() => {
@@ -1352,31 +1548,29 @@ describe('choices', () => {
         instance.containerOuter.removeLoadingState.reset();
       });
 
-      const returnsEarly = () => {
-        it('returns early', () => {
-          expect(addGroupStub.called).to.equal(false);
-          expect(addChoiceStub.called).to.equal(false);
-          expect(clearChoicesStub.called).to.equal(false);
-        });
-      };
-
       describe('when element is not select element', () => {
         beforeEach(() => {
           instance._isSelectElement = false;
-          instance.setChoices(choices, value, label, false);
         });
 
-        returnsEarly();
+        it('throws', () => {
+          expect(() =>
+            instance.setChoices(choices, value, label, false),
+          ).to.throw(TypeError, /input/i);
+        });
       });
 
       describe('passing invalid arguments', () => {
         describe('passing no value', () => {
           beforeEach(() => {
             instance._isSelectElement = true;
-            instance.setChoices(choices, undefined, 'label', false);
           });
 
-          returnsEarly();
+          it('throws', () => {
+            expect(() =>
+              instance.setChoices(choices, null, 'label', false),
+            ).to.throw(TypeError, /value/i);
+          });
         });
       });
 
@@ -1451,7 +1645,9 @@ describe('choices', () => {
         });
       });
     });
+  });
 
+  describe('private methods', () => {
     describe('_createGroupsFragment', () => {
       let _createChoicesFragmentStub;
       const choices = [
