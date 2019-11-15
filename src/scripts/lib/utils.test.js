@@ -9,10 +9,10 @@ import {
   sanitise,
   sortByAlpha,
   sortByScore,
-  isIE11,
   existsInArray,
   cloneObject,
   dispatchEvent,
+  diff,
 } from './utils';
 
 describe('utils', () => {
@@ -37,7 +37,7 @@ describe('utils', () => {
   describe('generateId', () => {
     describe('when given element has id value', () => {
       it('generates a unique prefixed id based on given elements id', () => {
-        const element = document.createElement('div');
+        const element = document.createElement('select');
         element.id = 'test-id';
         const prefix = 'test-prefix';
 
@@ -49,7 +49,7 @@ describe('utils', () => {
 
     describe('when given element has no id value but name value', () => {
       it('generates a unique prefixed id based on given elements name plus 2 random characters', () => {
-        const element = document.createElement('div');
+        const element = document.createElement('select');
         element.name = 'test-name';
         const prefix = 'test-prefix';
 
@@ -63,7 +63,7 @@ describe('utils', () => {
 
     describe('when given element has no id value and no name value', () => {
       it('generates a unique prefixed id based on 4 random characters', () => {
-        const element = document.createElement('div');
+        const element = document.createElement('select');
         const prefix = 'test-prefix';
 
         const output = generateId(element, prefix);
@@ -83,7 +83,7 @@ describe('utils', () => {
       expect(getType([])).to.equal('Array');
       expect(getType(() => {})).to.equal('Function');
       expect(getType(new Error())).to.equal('Error');
-      expect(getType(new RegExp())).to.equal('RegExp');
+      expect(getType(new RegExp(/''/g))).to.equal('RegExp');
       expect(getType(new String())).to.equal('String'); // eslint-disable-line
       expect(getType('')).to.equal('String');
     });
@@ -97,12 +97,24 @@ describe('utils', () => {
   });
 
   describe('sanitise', () => {
-    it('strips HTML from value', () => {
-      const value = '<script>somethingMalicious();</script>';
-      const output = sanitise(value);
-      expect(output).to.equal(
-        '&lt;script&rt;somethingMalicious();&lt;/script&rt;',
-      );
+    describe('when passing a parameter that is not a string', () => {
+      it('returns the passed argument', () => {
+        const value = {
+          test: true,
+        };
+        const output = sanitise(value);
+        expect(output).to.equal(value);
+      });
+    });
+
+    describe('when passing a string', () => {
+      it('strips HTML from value', () => {
+        const value = '<script>somethingMalicious();</script>';
+        const output = sanitise(value);
+        expect(output).to.equal(
+          '&lt;script&rt;somethingMalicious();&lt;/script&rt;',
+        );
+      });
     });
   });
 
@@ -189,18 +201,6 @@ describe('utils', () => {
     });
   });
 
-  describe('isIE11', () => {
-    it('returns whether the given user agent string matches an IE11 user agent string', () => {
-      const IE11UserAgent =
-        'Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko';
-      const firefoxUserAgent =
-        'Mozilla/5.0 (Android 4.4; Mobile; rv:41.0) Gecko/41.0 Firefox/41.0';
-
-      expect(isIE11(IE11UserAgent)).to.equal(true);
-      expect(isIE11(firefoxUserAgent)).to.equal(false);
-    });
-  });
-
   describe('existsInArray', () => {
     it('determines whether a value exists within given array', () => {
       const values = [
@@ -236,6 +236,22 @@ describe('utils', () => {
 
       expect(output).to.not.equal(object);
       expect(output).to.eql(object);
+    });
+  });
+
+  describe('diff', () => {
+    it('returns an array of keys present on the first but missing on the second object', () => {
+      const obj1 = {
+        foo: 'bar',
+        baz: 'foo',
+      };
+      const obj2 = {
+        foo: 'bar',
+      };
+
+      const output = diff(obj1, obj2);
+
+      expect(output).to.deep.equal(['baz']);
     });
   });
 });

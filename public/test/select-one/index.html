@@ -15,43 +15,46 @@
     <link
       rel="apple-touch-icon"
       sizes="180x180"
-      href="../assets/images/apple-touch-icon.png"
+      href="../../assets/images/apple-touch-icon.png"
     />
     <link
       rel="icon"
       type="image/png"
-      href="../assets/images/favicon-32x32.png"
+      href="../../assets/images/favicon-32x32.png"
       sizes="32x32"
     />
     <link
       rel="icon"
       type="image/png"
-      href="../assets/images/favicon-16x16.png"
+      href="../../assets/images/favicon-16x16.png"
       sizes="16x16"
     />
-    <link rel="manifest" href="../assets/images/manifest.json" />
+    <link rel="manifest" href="../../assets/images/manifest.json" />
     <link
       rel="mask-icon"
-      href="../assets/images/safari-pinned-tab.svg"
+      href="../../assets/images/safari-pinned-tab.svg"
       color="#00bcd4"
     />
-    <link rel="shortcut icon" href="../assets/images/favicon.ico" />
+    <link rel="shortcut icon" href="../../assets/images/favicon.ico" />
     <meta
       name="msapplication-config"
-      content="../assets/images/browserconfig.xml"
+      content="../../assets/images/browserconfig.xml"
     />
     <meta name="theme-color" content="#ffffff" />
 
     <!-- Ignore these -->
-    <link rel="stylesheet" href="../assets/styles/base.min.css?version=6.0.3" />
+    <link
+      rel="stylesheet"
+      href="../../assets/styles/base.min.css?version=6.0.3"
+    />
     <!-- End ignore these -->
 
     <!-- Choices includes -->
     <link
       rel="stylesheet"
-      href="../assets/styles/choices.min.css?version=6.0.3"
+      href="../../assets/styles/choices.min.css?version=6.0.3"
     />
-    <script src="../assets/scripts/choices.min.js?version=6.0.3"></script>
+    <script src="../../assets/scripts/choices.min.js?version=6.0.3"></script>
     <!-- End Choices includes -->
   </head>
 
@@ -96,6 +99,18 @@
             <option value="Choice 2">Choice 2</option>
             <option value="Choice 3">Choice 3</option>
             <option value="Choice 4" disabled>Choice 4</option>
+          </select>
+        </div>
+
+        <div data-test-hook="disabled-first-choice-via-options">
+          <label for="choices-disabled-choice-via-options"
+            >Disabled first choice by options</label
+          >
+          <select
+            class="form-control"
+            name="choices-disabled-choice-via-options"
+            id="choices-disabled-choice-via-options"
+          >
           </select>
         </div>
 
@@ -178,13 +193,47 @@
           </select>
         </div>
 
+        <div data-test-hook="placeholder-via-option-value">
+          <label for="choices-placeholder-via-option-value"
+            >Placeholder via empty option value</label
+          >
+          <select
+            class="form-control"
+            name="choices-placeholder-via-option-value"
+            id="choices-placeholder-via-option-value"
+          >
+            <option value="">I am a placeholder</option>
+            <option value="Choice 1">Choice 1</option>
+            <option value="Choice 2">Choice 2</option>
+            <option value="Choice 3">Choice 3</option>
+          </select>
+        </div>
+
+        <div data-test-hook="placeholder-via-option-attr">
+          <label for="choices-placeholder-via-option-attr"
+            >Placeholder via option attribute</label
+          >
+          <select
+            class="form-control"
+            name="choices-placeholder-via-option-attr"
+            id="choices-placeholder-via-option-attr"
+          >
+            <option placeholder>I am a placeholder</option>
+            <option value="Choice 1">Choice 1</option>
+            <option value="Choice 2">Choice 2</option>
+            <option value="Choice 3">Choice 3</option>
+          </select>
+        </div>
+
         <div data-test-hook="remote-data">
           <label for="choices-remote-data">Remote data</label>
           <select
             class="form-control"
             name="choices-remote-data"
             id="choices-remote-data"
-          ></select>
+          >
+            <option value="">I am a placeholder</option>
+          </select>
         </div>
 
         <div data-test-hook="scrolling-dropdown">
@@ -313,7 +362,11 @@
 
         <div data-test-hook="new-destroy-init">
           <label for="choices-new-destroy-init">New, Destroy, Init</label>
-          <select class="form-control" name="choices-new-destroy-init" id="choices-new-destroy-init">
+          <select
+            class="form-control"
+            name="choices-new-destroy-init"
+            id="choices-new-destroy-init"
+          >
             <option value="Choice 1">Choice 1</option>
             <option value="Choice 2">Choice 2</option>
             <option value="Choice 3">Choice 3</option>
@@ -347,6 +400,29 @@
           removeItemButton: true,
         });
 
+        new Choices('#choices-disabled-choice-via-options', {
+          removeItemButton: true,
+          choices: [
+            {
+              value: 'Choice 1',
+              label: 'Choice 1',
+              disabled: true,
+            },
+            {
+              value: 'Choice 2',
+              label: 'Choice 2',
+            },
+            {
+              value: 'Choice 3',
+              label: 'Choice 3',
+            },
+            {
+              value: 'Choice 4',
+              label: 'Choice 4',
+            },
+          ],
+        });
+
         new Choices('#choices-add-items-disabled', {
           addItems: false,
         });
@@ -369,6 +445,10 @@
         new Choices('#choices-search-floor', {
           searchFloor: 5,
         });
+
+        new Choices('#choices-placeholder-via-option-value');
+
+        new Choices('#choices-placeholder-via-option-attr');
 
         new Choices('#choices-remote-data', {
           shouldSort: false,
@@ -460,9 +540,11 @@
         new Choices('#choices-search-by-label', { searchFields: ['label'] });
 
         const newDestroyInitChoices = new Choices('#choices-new-destroy-init');
-        document.querySelector('button.destroy').addEventListener('click', () => {
-          newDestroyInitChoices.destroy();
-        });
+        document
+          .querySelector('button.destroy')
+          .addEventListener('click', () => {
+            newDestroyInitChoices.destroy();
+          });
         document.querySelector('button.init').addEventListener('click', () => {
           newDestroyInitChoices.init();
         });

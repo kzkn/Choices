@@ -13,6 +13,7 @@ function expectEqualElements(element1, element2) {
   expect(Object.keys(element1.dataset)).to.have.members(
     Object.keys(element2.dataset),
   );
+  expect(element1.classList).to.include(element2.classList);
   // compare attributes values
   for (const attribute of Object.values(element1.attributes)) {
     expect(element1.getAttribute(attribute)).to.equal(
@@ -24,7 +25,7 @@ function expectEqualElements(element1, element2) {
 describe('templates', () => {
   describe('containerOuter', () => {
     const classes = {
-      containerOuter: 'test',
+      containerOuter: 'class-1',
     };
     const direction = 'rtl';
 
@@ -158,7 +159,7 @@ describe('templates', () => {
   describe('containerInner', () => {
     it('returns expected html', () => {
       const classes = {
-        containerInner: 'test',
+        containerInner: 'class-1',
       };
       const expectedOutput = strToEl(
         `<div class="${classes.containerInner}"></div>`,
@@ -171,9 +172,9 @@ describe('templates', () => {
 
   describe('itemList', () => {
     const classes = {
-      list: 'test 1',
-      listSingle: 'test 2',
-      listItems: 'test 3',
+      list: 'class-1',
+      listSingle: 'class-2',
+      listItems: 'class-3',
     };
 
     describe('select one element', () => {
@@ -202,7 +203,7 @@ describe('templates', () => {
   describe('placeholder', () => {
     it('returns expected html', () => {
       const classes = {
-        placeholder: 'test',
+        placeholder: 'class-1',
       };
       const value = 'test';
       const expectedOutput = strToEl(`
@@ -215,7 +216,7 @@ describe('templates', () => {
 
   describe('choiceList', () => {
     const classes = {
-      list: 'test',
+      list: 'class-1',
     };
 
     describe('select one element', () => {
@@ -252,9 +253,9 @@ describe('templates', () => {
 
   describe('choiceGroup', () => {
     const classes = {
-      group: 'test 1',
-      groupHeading: 'test 2',
-      itemDisabled: 'test 3',
+      group: 'class-1',
+      groupHeading: 'class-2',
+      itemDisabled: 'class-3',
     };
 
     let data;
@@ -316,11 +317,12 @@ describe('templates', () => {
 
   describe('choice', () => {
     const classes = {
-      item: 'test 1',
-      itemChoice: 'test 2',
-      itemDisabled: 'test 3',
-      itemSelectable: 'test 4',
-      placeholder: 'test 5',
+      item: 'class-1',
+      itemChoice: 'class-2',
+      itemDisabled: 'class-3',
+      itemSelectable: 'class-4',
+      placeholder: 'class-5',
+      selectedState: 'class-6',
     };
 
     const itemSelectText = 'test 6';
@@ -335,6 +337,7 @@ describe('templates', () => {
         elementId: 'test',
         label: 'test',
         value: 'test',
+        selected: false,
       };
     });
 
@@ -390,6 +393,35 @@ describe('templates', () => {
       });
     });
 
+    describe('selected state', () => {
+      beforeEach(() => {
+        data = {
+          ...data,
+          selected: true,
+        };
+      });
+
+      it('returns expected html', () => {
+        const expectedOutput = strToEl(`
+          <div
+            class="${classes.item} ${classes.itemChoice} ${classes.selectedState} ${classes.itemSelectable}"
+            data-select-text="${itemSelectText}"
+            data-choice
+            data-id="${data.id}"
+            data-value="${data.value}"
+            data-choice-selectable
+            id="${data.elementId}"
+            role="option"
+            >
+            ${data.label}
+          </div>
+        `);
+        const actualOutput = templates.choice(classes, data, itemSelectText);
+
+        expectEqualElements(actualOutput, expectedOutput);
+      });
+    });
+
     describe('placeholder', () => {
       beforeEach(() => {
         data = {
@@ -401,7 +433,7 @@ describe('templates', () => {
       it('returns expected html', () => {
         const expectedOutput = strToEl(`
           <div
-            class="${classes.item} ${classes.itemChoice} ${classes.itemSelectable} ${classes.placeholder}"
+            class="${classes.item} ${classes.itemChoice} ${classes.placeholder} ${classes.itemSelectable}"
             data-select-text="${itemSelectText}"
             data-choice
             data-id="${data.id}"
@@ -451,8 +483,8 @@ describe('templates', () => {
 
   describe('input', () => {
     const classes = {
-      input: 'test 1',
-      inputCloned: 'test 2',
+      input: 'class-1',
+      inputCloned: 'class-2',
     };
 
     it('returns expected html', () => {
@@ -479,9 +511,10 @@ describe('templates', () => {
 
   describe('dropdown', () => {
     const classes = {
-      list: 'test-1',
-      listDropdown: 'test-2',
+      list: 'class-1',
+      listDropdown: 'class-2',
     };
+
     it('returns expected html', () => {
       const value = 'test';
       const expectedOutput = strToEl(
@@ -495,10 +528,10 @@ describe('templates', () => {
 
   describe('notice', () => {
     const classes = {
-      item: 'test-1',
-      itemChoice: 'test-2',
-      noResults: 'test-3',
-      noChoices: 'test-4',
+      item: 'class-1',
+      itemChoice: 'class-2',
+      noResults: 'class-3',
+      noChoices: 'class-4',
     };
 
     const label = 'test';

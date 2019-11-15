@@ -1,4 +1,4 @@
-// Type definitions for Choices.js 7.1.x
+// Type definitions for Choices.js
 // Project: https://github.com/jshjohnson/Choices
 // Definitions by:
 //         Arthur vasconcelos <https://github.com/arthurvasconcelos>,
@@ -19,19 +19,34 @@ declare namespace Choices {
     type noticeStringFunction = (value: string) => string;
     type noticeLimitFunction = (maxItemCount: number) => string;
     type filterFunction = (value: string) => boolean;
+    type valueCompareFunction = (value1: string, value2: string) => boolean;
   }
 
   interface Choice {
+    id?: number;
     customProperties?: Record<string, any>;
     disabled?: boolean;
+    active?: boolean;
     elementId?: string;
-    groupId?: string;
-    id?: string;
+    groupId?: number;
     keyCode?: number;
     label: string;
     placeholder?: boolean;
     selected?: boolean;
     value: string;
+  }
+
+  interface Group {
+    id?: number;
+    active?: boolean;
+    disabled?: boolean;
+    value: any;
+  }
+
+  interface Item extends Choice {
+    choiceId?: number;
+    keyCode?: number;
+    highlighted?: boolean;
   }
 
   /**
@@ -46,11 +61,11 @@ declare namespace Choices {
      * Arguments: id, value, label, groupValue, keyCode
      */
     addItem: CustomEvent<{
-      id: string;
+      id: number;
       value: string;
       label: string;
       groupValue: string;
-      keyCode: string;
+      keyCode: number;
     }>;
 
     /**
@@ -61,7 +76,7 @@ declare namespace Choices {
      * Arguments: id, value, label, groupValue
      */
     removeItem: CustomEvent<{
-      id: string;
+      id: number;
       value: string;
       label: string;
       groupValue: string;
@@ -75,7 +90,7 @@ declare namespace Choices {
      * Arguments: id, value, label, groupValue
      */
     highlightItem: CustomEvent<{
-      id: string;
+      id: number;
       value: string;
       label: string;
       groupValue: string;
@@ -89,7 +104,7 @@ declare namespace Choices {
      * Arguments: id, value, label, groupValue
      */
     unhighlightItem: CustomEvent<{
-      id: string;
+      id: number;
       value: string;
       label: string;
       groupValue: string;
@@ -147,18 +162,6 @@ declare namespace Choices {
      * Arguments: el is the choice.passedElement that was affected.
      */
     highlightChoice: CustomEvent<{ el: Choices.passedElement }>;
-  }
-
-  interface Group {
-    active?: boolean;
-    disabled?: boolean;
-    id?: string;
-    value: any;
-  }
-
-  interface Item extends Choice {
-    choiceId?: string;
-    keyCode?: number;
   }
 
   interface Templates {
@@ -263,6 +266,8 @@ declare namespace Choices {
     disabledState: string;
     /** @default 'is-highlighted' */
     highlightedState: string;
+    /** @default 'is-selected' */
+    selectedState: string;
     /** @default 'is-flipped' */
     flippedState: string;
     /** @default 'is-loading' */
@@ -404,7 +409,7 @@ declare namespace Choices {
      *
      * @default null
      */
-    addItemFilter: string | RegExp | Choices.Types.filterFunction;
+    addItemFilter: string | RegExp | Choices.Types.filterFunction | null;
 
     /**
      * The text that is shown when a user has inputted a new item but has not pressed the enter key. To access the current input value, pass a function with a `value` argument (see the **default config** [https://github.com/jshjohnson/Choices#setup] for an example), otherwise pass a string.
@@ -564,7 +569,7 @@ declare namespace Choices {
      * ```
      * // Sorting via length of label from largest to smallest
      * const example = new Choices(element, {
-     *   sortFilter: function(a, b) {
+     *   sorter: function(a, b) {
      *     return b.label.length - a.label.length;
      *   },
      * };
@@ -572,7 +577,7 @@ declare namespace Choices {
      *
      * @default sortByAlpha
      */
-    sortFilter: (current: Choice, next: Choice) => number;
+    sorter: (current: Choice, next: Choice) => number;
 
     /**
      * Whether the input should show a placeholder. Used in conjunction with `placeholderValue`. If `placeholder` is set to true and no value is passed to `placeholderValue`, the passed input's placeholder attribute will be used as the placeholder value.
@@ -600,7 +605,7 @@ declare namespace Choices {
      *
      * @default null
      */
-    placeholderValue: string;
+    placeholderValue: string | null;
 
     /**
      * The value of the search inputs placeholder.
@@ -609,7 +614,7 @@ declare namespace Choices {
      *
      * @default null
      */
-    searchPlaceholderValue: string;
+    searchPlaceholderValue: string | null;
 
     /**
      * Prepend a value to each item added/selected.
@@ -618,7 +623,7 @@ declare namespace Choices {
      *
      * @default null
      */
-    prependValue: string;
+    prependValue: string | null;
 
     /**
      * Append a value to each item added/selected.
@@ -627,7 +632,7 @@ declare namespace Choices {
      *
      * @default null
      */
-    appendValue: string;
+    appendValue: string | null;
 
     /**
      * Whether selected choices should be removed from the list. By default choices are removed when they are selected in multiple select box. To always render choices pass `always`.
@@ -689,16 +694,37 @@ declare namespace Choices {
     /**
      * If no duplicates are allowed, and the value already exists in the array.
      *
-     * @default 'Only unique values can be added.'
+     * @default 'Only unique values can be added'
      */
     uniqueItemText: string | Choices.Types.noticeStringFunction;
+
+    /**
+     * The text that is shown when addItemFilter is passed and it returns false
+     *
+     * **Input types affected:** text
+     *
+     * @default 'Only values matching specific conditions can be added'
+     */
+    customAddItemText: string | Choices.Types.noticeStringFunction;
+
+    /**
+     * Compare choice and value in appropriate way (e.g. deep equality for objects). To compare choice and value, pass a function with a `valueComparer` argument (see the [default config](https://github.com/jshjohnson/Choices#setup) for an example).
+     *
+     * **Input types affected:** select-one, select-multiple
+     *
+     * @default
+     * ```
+     * (choice, item) => choice === item;
+     * ```
+     */
+    valueComparer: Choices.Types.valueCompareFunction;
 
     /**
      * Classes added to HTML generated by Choices. By default classnames follow the BEM notation.
      *
      * **Input types affected:** text, select-one, select-multiple
      */
-    classNames: Partial<Choices.ClassNames>;
+    classNames: Choices.ClassNames;
 
     /**
      * Choices uses the great Fuse library for searching. You can find more options here: https://github.com/krisk/Fuse#options
@@ -714,7 +740,7 @@ declare namespace Choices {
      *
      * @default null
      */
-    callbackOnInit: (this: Choices) => void;
+    callbackOnInit: ((this: Choices) => void) | null;
 
     /**
      * Function to run on template creation. Through this callback it is possible to provide custom templates for the various components of Choices (see terminology). For Choices to work with custom templates, it is important you maintain the various data attributes defined here [https://github.com/jshjohnson/Choices/blob/67f29c286aa21d88847adfcd6304dc7d068dc01f/assets/scripts/src/choices.js#L1993-L2067].
@@ -750,9 +776,9 @@ declare namespace Choices {
      *
      * @default null
      */
-    callbackOnCreateTemplates: (
-      template: Choices.Types.strToEl,
-    ) => Partial<Choices.Templates>;
+    callbackOnCreateTemplates:
+      | ((template: Choices.Types.strToEl) => Partial<Choices.Templates>)
+      | null;
   }
 }
 

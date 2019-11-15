@@ -1,9 +1,12 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
 import { spy, stub } from 'sinon';
+import sinonChai from 'sinon-chai';
 
 import Choices from './choices';
 import { EVENTS, ACTION_TYPES, DEFAULT_CONFIG } from './constants';
 import { WrappedSelect, WrappedInput } from './components/index';
+
+chai.use(sinonChai);
 
 describe('choices', () => {
   let instance;
@@ -58,6 +61,36 @@ describe('choices', () => {
           expect(instance.config).to.eql({
             ...DEFAULT_CONFIG,
             ...config,
+          });
+        });
+
+        describe('passing the searchEnabled config option with a value of false', () => {
+          describe('passing a select-multiple element', () => {
+            it('sets searchEnabled to true', () => {
+              document.body.innerHTML = `
+              <select data-choice multiple></select>
+              `;
+
+              instance = new Choices('[data-choice]', {
+                searchEnabled: false,
+              });
+
+              expect(instance.config.searchEnabled).to.equal(true);
+            });
+          });
+        });
+
+        describe('passing the renderSelectedChoices config option with an unexpected value', () => {
+          it('sets renderSelectedChoices to "auto"', () => {
+            document.body.innerHTML = `
+            <select data-choice multiple></select>
+            `;
+
+            instance = new Choices('[data-choice]', {
+              renderSelectedChoices: 'test',
+            });
+
+            expect(instance.config.renderSelectedChoices).to.equal('auto');
           });
         });
       });
@@ -1133,7 +1166,7 @@ describe('choices', () => {
           const fetcher = async inst => {
             expect(inst).to.eq(choice);
             fetcherCalled = true;
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 800));
 
             return [
               { label: 'l1', value: 'v1', customProperties: 'prop1' },
@@ -1142,15 +1175,10 @@ describe('choices', () => {
           };
           expect(choice._store.choices.length).to.equal(0);
           const promise = choice.setChoices(fetcher);
-          await new Promise(resolve =>
-            requestAnimationFrame(() => {
-              expect(handleLoadingStateSpy.callCount).to.equal(1);
-              resolve();
-            }),
-          );
           expect(fetcherCalled).to.be.true;
           const res = await promise;
           expect(res).to.equal(choice);
+          expect(handleLoadingStateSpy.callCount).to.equal(2);
           expect(choice._store.choices[1].value).to.equal('v2');
           expect(choice._store.choices[1].label).to.equal('l2');
           expect(choice._store.choices[1].customProperties).to.equal('prop2');
@@ -1511,12 +1539,12 @@ describe('choices', () => {
       const label = 'label';
       const choices = [
         {
-          id: '1',
+          id: 1,
           value: '1',
           label: 'Test 1',
         },
         {
-          id: '2',
+          id: 2,
           value: '2',
           label: 'Test 2',
         },
@@ -1735,15 +1763,15 @@ describe('choices', () => {
 
           beforeEach(() => {
             sortFnStub = stub();
-            instance.config.sortFn = sortFnStub;
+            instance.config.sorter = sortFnStub;
             instance.config.shouldSort = true;
           });
 
           afterEach(() => {
-            instance.config.sortFn.reset();
+            instance.config.sorter.reset();
           });
 
-          it('sorts groups by config.sortFn', () => {
+          it('sorts groups by config.sorter', () => {
             expect(sortFnStub.called).to.equal(false);
             instance._createGroupsFragment(groups, choices);
             expect(sortFnStub.called).to.equal(true);
@@ -1755,12 +1783,12 @@ describe('choices', () => {
 
           beforeEach(() => {
             sortFnStub = stub();
-            instance.config.sortFn = sortFnStub;
+            instance.config.sorter = sortFnStub;
             instance.config.shouldSort = false;
           });
 
           afterEach(() => {
-            instance.config.sortFn.reset();
+            instance.config.sorter.reset();
           });
 
           it('does not sort groups', () => {
@@ -1875,6 +1903,125 @@ describe('choices', () => {
               ]);
             });
           });
+        });
+      });
+    });
+
+    describe('_generatePlaceholderValue', () => {
+      describe('select element', () => {
+        describe('when a placeholder option is defined', () => {
+          it('returns the text value of the placeholder option', () => {
+            const placeholderValue = 'I am a placeholder';
+
+            instance._isSelectElement = true;
+            instance.passedElement.placeholderOption = {
+              text: placeholderValue,
+            };
+
+            const value = instance._generatePlaceholderValue();
+            expect(value).to.equal(placeholderValue);
+          });
+        });
+
+        describe('when a placeholder option is not defined', () => {
+          it('returns false', () => {
+            instance._isSelectElement = true;
+            instance.passedElement.placeholderOption = undefined;
+
+            const value = instance._generatePlaceholderValue();
+            expect(value).to.equal(false);
+          });
+        });
+      });
+
+      describe('text input', () => {
+        describe('when the placeholder config option is set to true', () => {
+          describe('when the placeholderValue config option is defined', () => {
+            it('returns placeholderValue', () => {
+              const placeholderValue = 'I am a placeholder';
+
+              instance._isSelectElement = false;
+              instance.config.placeholder = true;
+              instance.config.placeholderValue = placeholderValue;
+
+              const value = instance._generatePlaceholderValue();
+              expect(value).to.equal(placeholderValue);
+            });
+          });
+
+          describe('when the placeholderValue config option is not defined', () => {
+            describe('when the placeholder attribute is defined on the passed element', () => {
+              it('returns the value of the placeholder attribute', () => {
+                const placeholderValue = 'I am a placeholder';
+
+                instance._isSelectElement = false;
+                instance.config.placeholder = true;
+                instance.config.placeholderValue = undefined;
+                instance.passedElement.element = {
+                  dataset: {
+                    placeholder: placeholderValue,
+                  },
+                };
+
+                const value = instance._generatePlaceholderValue();
+                expect(value).to.equal(placeholderValue);
+              });
+            });
+
+            describe('when the placeholder attribute is not defined on the passed element', () => {
+              it('returns false', () => {
+                instance._isSelectElement = false;
+                instance.config.placeholder = true;
+                instance.config.placeholderValue = undefined;
+                instance.passedElement.element = {
+                  dataset: {
+                    placeholder: undefined,
+                  },
+                };
+
+                const value = instance._generatePlaceholderValue();
+                expect(value).to.equal(false);
+              });
+            });
+          });
+        });
+
+        describe('when the placeholder config option is set to false', () => {
+          it('returns false', () => {
+            instance._isSelectElement = false;
+            instance.config.placeholder = false;
+
+            const value = instance._generatePlaceholderValue();
+            expect(value).to.equal(false);
+          });
+        });
+      });
+    });
+
+    describe('_getTemplate', () => {
+      describe('when not passing a template key', () => {
+        it('returns null', () => {
+          output = instance._getTemplate();
+          expect(output).to.equal(null);
+        });
+      });
+
+      describe('when passing a template key', () => {
+        it('returns the generated template for the given template key', () => {
+          const templateKey = 'test';
+          const element = document.createElement('div');
+          const customArg = { test: true };
+
+          instance._templates = {
+            [templateKey]: stub().returns(element),
+          };
+
+          output = instance._getTemplate(templateKey, customArg);
+          expect(output).to.deep.equal(element);
+          expect(instance._templates[templateKey]).to.have.been.calledOnceWith(
+            instance.config.classNames,
+            customArg,
+          );
         });
       });
     });

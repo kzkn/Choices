@@ -1,4 +1,4 @@
-# Choices.js [![Actions Status](https://github.com/jshjohnson/Choices/workflows/Unit%20Tests/badge.svg)](https://github.com/jshjohnson/Choices/actions) [![npm](https://img.shields.io/npm/v/choices.js.svg)](https://www.npmjs.com/package/choices.js) [![codebeat badge](https://codebeat.co/badges/55120150-5866-42d8-8010-6aaaff5d3fa1)](https://codebeat.co/projects/github-com-jshjohnson-choices-master)
+# Choices.js [![Actions Status](https://github.com/jshjohnson/Choices/workflows/Build%20and%20test/badge.svg)](https://github.com/jshjohnson/Choices/actions) [![Actions Status](https://github.com/jshjohnson/Choices/workflows/Bundle%20size%20checks/badge.svg)](https://github.com/jshjohnson/Choices/actions) [![npm](https://img.shields.io/npm/v/choices.js.svg)](https://www.npmjs.com/package/choices.js)
 
 A vanilla, lightweight (~19kb gzipped 🎉), configurable select box/text input plugin. Similar to Select2 and Selectize but without the jQuery dependency.
 
@@ -105,7 +105,7 @@ Or include Choices directly:
     resetScrollPosition: true,
     shouldSort: true,
     shouldSortItems: false,
-    sortFn: () => {...},
+    sorter: () => {...},
     placeholder: true,
     placeholderValue: null,
     searchPlaceholderValue: null,
@@ -122,8 +122,8 @@ Or include Choices directly:
     maxItemText: (maxItemCount) => {
       return `Only ${maxItemCount} values can be added`;
     },
-    itemComparer: (choice, item) => {
-      return choice === item;
+    valueComparer: (value1, value2) => {
+      return value1 === value2;
     },
     classNames: {
       containerOuter: 'choices',
@@ -147,6 +147,7 @@ Or include Choices directly:
       openState: 'is-open',
       disabledState: 'is-disabled',
       highlightedState: 'is-highlighted',
+      selectedState: 'is-selected',
       flippedState: 'is-flipped',
       loadingState: 'is-loading',
       noResults: 'has-no-results',
@@ -408,7 +409,7 @@ new Choices(element, {
 
 **Usage:** Whether items should be sorted. If false, items will appear in the order they were selected.
 
-### sortFn
+### sorter
 
 **Type:** `Function` **Default:** sortByAlpha
 
@@ -421,7 +422,7 @@ new Choices(element, {
 ```js
 // Sorting via length of label from largest to smallest
 const example = new Choices(element, {
-  sortFn: function(a, b) {
+  sorter: function(a, b) {
     return b.label.length - a.label.length;
   },
 };
@@ -431,11 +432,11 @@ const example = new Choices(element, {
 
 **Type:** `Boolean` **Default:** `true`
 
-**Input types affected:** `text`, `select-multiple`
+**Input types affected:** `text`
 
 **Usage:** Whether the input should show a placeholder. Used in conjunction with `placeholderValue`. If `placeholder` is set to true and no value is passed to `placeholderValue`, the passed input's placeholder attribute will be used as the placeholder value.
 
-**Note:** For single select boxes, the recommended way of adding a placeholder is as follows:
+**Note:** For select boxes, the recommended way of adding a placeholder is as follows:
 
 ```html
 <select>
@@ -536,13 +537,21 @@ For backward compatibility, `<option placeholder>This is a placeholder</option>`
 
 **Usage:** The text that is shown when a user has focus on the input but has already reached the [max item count](https://github.com/jshjohnson/Choices#maxitemcount). To access the max item count, pass a function with a `maxItemCount` argument (see the [default config](https://github.com/jshjohnson/Choices#setup) for an example), otherwise pass a string.
 
-### itemComparer
+### valueComparer
 
 **Type:** `Function` **Default:** `strict equality`
 
 **Input types affected:** `select-one`, `select-multiple`
 
-**Usage:** Compare choice and value in appropriate way (e.g. deep equality for objects). To compare choice and value, pass a function with a `itemComparer` argument (see the [default config](https://github.com/jshjohnson/Choices#setup) for an example).
+**Usage:** A custom compare function used when finding choices by value (using `setChoiceByValue`).
+
+**Example:**
+
+```js
+const example = new Choices(element, {
+  valueComparer: (a, b) => value.trim() === b.trim(),
+};
+```
 
 ### classNames
 
@@ -570,6 +579,7 @@ classNames: {
   openState: 'is-open',
   disabledState: 'is-disabled',
   highlightedState: 'is-highlighted',
+  selectedState: 'is-selected',
   flippedState: 'is-flipped',
   selectedState: 'is-highlighted',
 }
@@ -1053,7 +1063,7 @@ Element.prototype.closest
 
 ## Development
 
-To setup a local environment: clone this repo, navigate into it's directory in a terminal window and run the following command:
+To setup a local environment: clone this repo, navigate into its directory in a terminal window and run the following command:
 
 `npm install`
 
