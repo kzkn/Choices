@@ -144,7 +144,6 @@ class Choices {
         classNames: this.config.classNames,
         template: data => this._templates.option(data),
       });
-      this._presetOptions = this.passedElement.options;
     }
 
     this.initialised = false;
@@ -184,6 +183,8 @@ class Choices {
     };
     // Assign preset groups from passed element
     this._presetGroups = this.passedElement.optionGroups;
+    // Assign preset options from passed element
+    this._presetOptions = this.passedElement.options;
     // Assign preset choices from passed object
     this._presetChoices = this.config.choices;
     // Assign preset items from passed object first
